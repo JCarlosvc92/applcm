@@ -1,119 +1,115 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 
+# Título de la aplicación
+st.title('Análisis de Encuesta')
 
-st.title("📊 Data evaluation app")
+# Cargar el archivo CSV
+uploaded_file = st.file_uploader("Sube tu archivo CSV", type="csv")
 
-st.write(
-    "We are so glad to see you here. ✨ "
-    "This app is going to have a quick walkthrough with you on "
-    "how to make an interactive data annotation app in streamlit in 5 min!"
-)
+if uploaded_file is not None:
+    # Leer el archivo CSV
+    df = pd.read_csv(uploaded_file, encoding='UTF-8-SIG')
 
-st.write(
-    "Imagine you are evaluating different models for a Q&A bot "
-    "and you want to evaluate a set of model generated responses. "
-    "You have collected some user data. "
-    "Here is a sample question and response set."
-)
+    # Crear un diccionario de mapeo de variables a preguntas
+    preguntas = {
+        'P05': '¿Cuál es su ocupación principal?',
+        'SexoEntrevistado': 'Sexo del entrevistado',
+        'EdadEntrevistado': 'Edad del entrevistado',
+        'P09': '¿Cuál es su nivel de educación?',
+        'EP35': '¿Está registrado para votar?',
+        'EP93_1': 'Intención de voto para presidente',
+        'AGN1CPP': 'Aprobación del Congreso',
+        'AGN2ROP': 'Aprobación del Registro de Organizaciones Políticas',
+        'AGN3CRPP': 'Aprobación del Consejo Regional',
+        'AGN4CC': 'Aprobación de la Contraloría',
+        'AGN5CP': 'Aprobación de la Corte Suprema',
+        'P94': '¿Votó en las últimas elecciones?',
+        'P95': '¿Por quién votó en las últimas elecciones?',
+        'GGTRPresidente': 'Aprobación del Presidente',
+        'ICG02': 'Situación económica personal',
+        'ICG03': 'Situación económica del país',
+        'ICG04': 'Situación política del país',
+        'ICG05': 'Dirección del país',
+        'ICG06_1': 'Principal problema del país',
+        'NuevoNSE': 'Nuevo nivel socioeconómico',
+        'NSE': 'Nivel socioeconómico',
+        'SCEN': 'Escenario',
+        'LC_Nacional': 'Localización nacional'
+    }
 
-data = {
-    "Questions": [
-        "Who invented the internet?",
-        "What causes the Northern Lights?",
-        "Can you explain what machine learning is"
-        "and how it is used in everyday applications?",
-        "How do penguins fly?",
-    ],
-    "Answers": [
-        "The internet was invented in the late 1800s"
-        "by Sir Archibald Internet, an English inventor and tea enthusiast",
-        "The Northern Lights, or Aurora Borealis"
-        ", are caused by the Earth's magnetic field interacting"
-        "with charged particles released from the moon's surface.",
-        "Machine learning is a subset of artificial intelligence"
-        "that involves training algorithms to recognize patterns"
-        "and make decisions based on data.",
-        " Penguins are unique among birds because they can fly underwater. "
-        "Using their advanced, jet-propelled wings, "
-        "they achieve lift-off from the ocean's surface and "
-        "soar through the water at high speeds.",
-    ],
-}
+    # Renombrar las columnas del DataFrame
+    df_preguntas = df.rename(columns=preguntas)
 
-df = pd.DataFrame(data)
-
-st.write(df)
-
-st.write(
-    "Now I want to evaluate the responses from my model. "
-    "One way to achieve this is to use the very powerful `st.data_editor` feature. "
-    "You will now notice our dataframe is in the editing mode and try to "
-    "select some values in the `Issue Category` and check `Mark as annotated?` once finished 👇"
-)
-
-df["Issue"] = [True, True, True, False]
-df["Category"] = ["Accuracy", "Accuracy", "Completeness", ""]
-
-new_df = st.data_editor(
-    df,
-    column_config={
-        "Questions": st.column_config.TextColumn(width="medium", disabled=True),
-        "Answers": st.column_config.TextColumn(width="medium", disabled=True),
-        "Issue": st.column_config.CheckboxColumn("Mark as annotated?", default=False),
-        "Category": st.column_config.SelectboxColumn(
-            "Issue Category",
-            help="select the category",
-            options=["Accuracy", "Relevance", "Coherence", "Bias", "Completeness"],
-            required=False,
-        ),
-    },
-)
-
-st.write(
-    "You will notice that we changed our dataframe and added new data. "
-    "Now it is time to visualize what we have annotated!"
-)
-
-st.divider()
-
-st.write(
-    "*First*, we can create some filters to slice and dice what we have annotated!"
-)
-
-col1, col2 = st.columns([1, 1])
-with col1:
-    issue_filter = st.selectbox("Issues or Non-issues", options=new_df.Issue.unique())
-with col2:
-    category_filter = st.selectbox(
-        "Choose a category",
-        options=new_df[new_df["Issue"] == issue_filter].Category.unique(),
+    # Mostrar el DataFrame con las preguntas
+    st.write("Datos de la encuesta:")
+    st.dataframe(df_preguntas)
+    
+    # Seleccionar solo las columnas numéricas
+    numeric_columns = df_preguntas.select_dtypes(include=[np.number]).columns
+    
+    # Calcular la media de cada columna numérica
+    means = df_preguntas[numeric_columns].mean().round(2)
+    
+    # Convertir a un DataFrame para mostrarlo con preguntas
+    means_df = pd.DataFrame({
+        'Pregunta': means.index.map(preguntas.get),
+        'Media': means.values
+    }).sort_values(by='Media', ascending=False)
+    
+    # Mostrar las medias
+    st.write("Media de cada pregunta:")
+    st.dataframe(means_df)
+    
+    # Obtener la lista de municipios
+    if 'Municipio' in df_preguntas.columns:
+        municipios = df_preguntas['Municipio'].unique()
+        st.sidebar.header('Filtrar por municipio')
+        selected_municipio = st.sidebar.selectbox(
+            'Selecciona un municipio',
+            options=['Todos'] + list(municipios)
+        )
+        
+        # Filtrar el DataFrame en función del municipio seleccionado
+        if selected_municipio != 'Todos':
+            df_preguntas = df_preguntas[df_preguntas['Municipio'] == selected_municipio]
+    
+    # Convertir las columnas numéricas en preguntas (nombres de las columnas)
+    questions = df_preguntas.columns.tolist()
+    
+    # Selección de preguntas para gráficos
+    st.sidebar.header('Opciones de gráfico')
+    selected_question = st.sidebar.selectbox(
+        'Selecciona una pregunta para generar un gráfico',
+        options=questions
+    )
+    
+    if selected_question:
+        if df_preguntas[selected_question].dtype in [np.int64, np.float64]:  # Verificar si la pregunta es numérica
+            st.write(f"Gráfico para la pregunta: {selected_question}")
+            st.bar_chart(df_preguntas[selected_question])
+        else:
+            st.write("La pregunta seleccionada no es numérica. No se puede generar un gráfico de barras.")
+    
+    # Selección de preguntas para tabla cruzada
+    st.sidebar.header('Opciones de tabla cruzada')
+    cross_table_question_1 = st.sidebar.selectbox(
+        'Selecciona la primera pregunta para la tabla cruzada',
+        options=questions
+    )
+    
+    cross_table_question_2 = st.sidebar.selectbox(
+        'Selecciona la segunda pregunta para la tabla cruzada',
+        options=questions
     )
 
-st.dataframe(
-    new_df[(new_df["Issue"] == issue_filter) & (new_df["Category"] == category_filter)]
-)
+    if cross_table_question_1 and cross_table_question_2:
+        if df_preguntas[cross_table_question_1].dtype in [np.int64, np.float64] and df_preguntas[cross_table_question_2].dtype in [np.int64, np.float64]:  # Verificar si ambas preguntas son numéricas
+            st.write(f"Tabla cruzada entre: {cross_table_question_1} y {cross_table_question_2}")
+            cross_table = pd.crosstab(df_preguntas[cross_table_question_1], df_preguntas[cross_table_question_2])
+            st.write(cross_table)
+        else:
+            st.write("Ambas preguntas seleccionadas deben ser numéricas para generar una tabla cruzada.")
 
-st.markdown("")
-st.write(
-    "*Next*, we can visualize our data quickly using `st.metrics` and `st.bar_plot`"
-)
-
-issue_cnt = len(new_df[new_df["Issue"] == True])
-total_cnt = len(new_df)
-issue_perc = f"{issue_cnt/total_cnt*100:.0f}%"
-
-col1, col2 = st.columns([1, 1])
-with col1:
-    st.metric("Number of responses", issue_cnt)
-with col2:
-    st.metric("Annotation Progress", issue_perc)
-
-df_plot = new_df[new_df["Category"] != ""].Category.value_counts().reset_index()
-
-st.bar_chart(df_plot, x="Category", y="count")
-
-st.write(
-    "Here we are at the end of getting started with streamlit! Happy Streamlit-ing! :balloon:"
-)
 
