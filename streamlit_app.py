@@ -1,18 +1,19 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import matplotlib.pyplot as plt
 
-# Título de la aplicación
-st.title('Análisis de Encuesta')
-
-# Cargar el archivo CSV
+# File uploader
 uploaded_file = st.file_uploader("Sube tu archivo CSV", type="csv")
 
 if uploaded_file is not None:
-    # Leer el archivo CSV
+    # Load the CSV file
     df = pd.read_csv(uploaded_file, encoding='UTF-8-SIG')
-
-    # Crear un diccionario de mapeo de variables a preguntas
+    
+    # Filter by municipality (assuming the municipality data is in a column 'Municipio')
+    municipio = st.selectbox("Seleccione el municipio", df['Municipio'].unique())
+    df_filtered = df[df['Municipio'] == municipio]
+    
+    # Mapping variables to questions
     preguntas = {
         'P05': '¿Cuál es su ocupación principal?',
         'SexoEntrevistado': 'Sexo del entrevistado',
@@ -39,77 +40,24 @@ if uploaded_file is not None:
         'LC_Nacional': 'Localización nacional'
     }
 
-    # Renombrar las columnas del DataFrame
-    df_preguntas = df.rename(columns=preguntas)
+    # Selection of questions to analyze
+    selected_questions = st.multiselect("Seleccione las preguntas para analizar", list(preguntas.values()))
 
-    # Mostrar el DataFrame con las preguntas
-    st.write("Datos de la encuesta:")
-    st.dataframe(df_preguntas)
-    
-    # Seleccionar solo las columnas numéricas
-    numeric_columns = df_preguntas.select_dtypes(include=[np.number]).columns
-    
-    # Calcular la media de cada columna numérica
-    means = df_preguntas[numeric_columns].mean().round(2)
-    
-    # Convertir a un DataFrame para mostrarlo con preguntas
-    means_df = pd.DataFrame({
-        'Pregunta': means.index.map(preguntas.get),
-        'Media': means.values
-    }).sort_values(by='Media', ascending=False)
-    
-    # Mostrar las medias
-    st.write("Media de cada pregunta:")
-    st.dataframe(means_df)
-    
-    # Obtener la lista de municipios
-    if 'Municipio' in df_preguntas.columns:
-        municipios = df_preguntas['Municipio'].unique()
-        st.sidebar.header('Filtrar por municipio')
-        selected_municipio = st.sidebar.selectbox(
-            'Selecciona un municipio',
-            options=['Todos'] + list(municipios)
-        )
+    # Display results for each selected question
+    for pregunta in selected_questions:
+        # Find the corresponding column in the dataframe
+        column = [k for k, v in preguntas.items() if v == pregunta][0]
         
-        # Filtrar el DataFrame en función del municipio seleccionado
-        if selected_municipio != 'Todos':
-            df_preguntas = df_preguntas[df_preguntas['Municipio'] == selected_municipio]
-    
-    # Convertir las columnas numéricas en preguntas (nombres de las columnas)
-    questions = df_preguntas.columns.tolist()
-    
-    # Selección de preguntas para gráficos
-    st.sidebar.header('Opciones de gráfico')
-    selected_question = st.sidebar.selectbox(
-        'Selecciona una pregunta para generar un gráfico',
-        options=questions
-    )
-    
-    if selected_question:
-        if df_preguntas[selected_question].dtype in [np.int64, np.float64]:  # Verificar si la pregunta es numérica
-            st.write(f"Gráfico para la pregunta: {selected_question}")
-            st.bar_chart(df_preguntas[selected_question])
+        st.write(f"**{pregunta}**")
+        
+        # Plot results
+        if df_filtered[column].dtype == 'object':
+            # Categorical data: bar plot
+            chart_data = df_filtered[column].value_counts()
+            st.bar_chart(chart_data)
         else:
-            st.write("La pregunta seleccionada no es numérica. No se puede generar un gráfico de barras.")
-    
-    # Selección de preguntas para tabla cruzada
-    st.sidebar.header('Opciones de tabla cruzada')
-    cross_table_question_1 = st.sidebar.selectbox(
-        'Selecciona la primera pregunta para la tabla cruzada',
-        options=questions
-    )
-    
-    cross_table_question_2 = st.sidebar.selectbox(
-        'Selecciona la segunda pregunta para la tabla cruzada',
-        options=questions
-    )
+            # Numerical data: histogram and mean
+            st.write(f"Media: {df_filtered[column].mean()}")
+            st.histogram(df_filtered[column])
 
-    if cross_table_question_1 and cross_table_question_2:
-        if df_preguntas[cross_table_question_1].dtype in [np.int64, np.float64] and df_preguntas[cross_table_question_2].dtype in [np.int64, np.float64]:  # Verificar si ambas preguntas son numéricas
-            st.write(f"Tabla cruzada entre: {cross_table_question_1} y {cross_table_question_2}")
-            cross_table = pd.crosstab(df_preguntas[cross_table_question_1], df_preguntas[cross_table_question_2])
-            st.write(cross_table)
-        else:
-            st.write("Ambas preguntas seleccionadas deben ser numéricas para generar una tabla cruzada.")
-
-
+        st.write("---")  # Add a separator between questions
